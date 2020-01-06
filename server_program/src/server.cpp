@@ -53,76 +53,64 @@ void server_close();
 //Signal SIGINT callback
 
 void sigint_callback(int sig) {
-		
-	sprintf(log_message, "Inside sigint_callback for sig %d\n", sig);
-	logger(log_file, "DEBUG", log_message);
-	memset(log_message, 0, sizeof(log_message));
-	server_listen_flag = 0;
-	exit(0);
+
+        sprintf(log_message, "Inside sigint_callback for sig %d\n", sig);
+        logger(log_file, "DEBUG", log_message);
+        memset(log_message, 0, sizeof(log_message));
+        server_listen_flag = 0;
+        exit(0);
 
 }
 
 //Socket creation
 int socket_create() {
 
-   int fd;
-   fd = socket(AF_INET, SOCK_STREAM, 0);
+        int fd;
+        fd = socket(AF_INET, SOCK_STREAM, 0);
 
-return fd;
+        return fd;
 }
 
 //Socket bind to name space
 int sock_bind(int fd){ 
-    int ret;
-    sin.sin_family  = AF_INET;
-    sin.sin_port = htons(server_port);
-    sin.sin_addr.s_addr = htonl(INADDR_ANY);
-
-/*    ret = inet_aton(HOST_IP, &sin.sin_addr);
- 
-    if(ret < 0) {
-	sprintf(log_message, "Supplied IP string not accepted by inet_aton\n");
-	logger(log_file, "ERROR", log_message);
-	memset(log_message, 0, sizeof(log_message));
-	return -2;
-    }
-  */
- 
-    ret = bind(fd, (struct sockaddr *)&sin, sizeof(struct sockaddr_in));
-
-    return ret;
+        int ret;
+        sin.sin_family  = AF_INET;
+        sin.sin_port = htons(server_port);
+        sin.sin_addr.s_addr = htonl(INADDR_ANY);
+        ret = bind(fd, (struct sockaddr *)&sin, sizeof(struct sockaddr_in));
+        return ret;
 }
 
 //Initialization thread
 int init_connection(int *server_fd_addr) {
-     int ret;
-//call socket_create
-    *server_fd_addr = socket_create();
-     if(*server_fd_addr < 0) {
-	perror("__LINE__: Socket creation failed \n");
-	return -1;
-     }
+        int ret;
+        //call socket_create
+        *server_fd_addr = socket_create();
+        if(*server_fd_addr < 0) {
+                perror("__LINE__: Socket creation failed \n");
+                return -1;
+        }
 
-//Bind socket to ip and port.
-    ret = sock_bind(*server_fd_addr);
-    if(ret < 0) {
-	perror("__LINE__: BIND FAILED \n");
-	return -1;
-    }
-  return 0;
+        //Bind socket to ip and port.
+        ret = sock_bind(*server_fd_addr);
+        if(ret < 0) {
+                perror("__LINE__: BIND FAILED \n");
+                return -1;
+        }
+        return 0;
 
 }
 
 //close server connection
 void server_close() {
 
-int i;
-//release resources
-for (i = 0 ; i < MAX_CONNECTIONS; i++) {
-    pthread_cancel(recv_thread[i]);
-    pthread_cancel(recv_thread[i]);
-}
-fclose(log_file);
+        int i;
+        //release resources
+        for (i = 0 ; i < MAX_CONNECTIONS; i++) {
+                pthread_cancel(recv_thread[i]);
+                pthread_cancel(recv_thread[i]);
+        }
+        fclose(log_file);
 
 }
 
@@ -223,10 +211,6 @@ void *recv_thread_func(void *arg) {
 	tv.tv_sec = 20;
 	tv.tv_usec = 0;
 
-//	sprintf(log_message, "Read Buffer contains %s\n", read_buf);
-//	logger(log_file, "DEBUG", log_message);
-//	memset(log_message, 0, sizeof(log_message));
-
    }
 
 sprintf(log_message, "EXITING RECV THREAD \n");
@@ -251,11 +235,7 @@ void *send_thread_func(void *arg) {
 	sprintf(log_message, "Inside send_thread_func\n");
 	logger(log_file, "DEBUG", log_message);
 	memset(log_message, 0, sizeof(log_message));
-/*	sprintf(success_buf, "HTTP/1.1 200 OK\r\n \
-	server: nginx\r\n \
-	date: Sun, 25 Nov 2018 00:42:38 GMT\r\n \
-	content-type: text/html; charset=UTF-8\r\n\r\n");
-*/	
+
 	while(1) {
 		if(bytes_read[client_fd] > 0 && success_buf_flag == 1) {
 			send_ret[client_fd] = send(client_fd, success_buf, sizeof(success_buf), 0);
@@ -286,67 +266,60 @@ void *send_thread_func(void *arg) {
 
 int main() {
 
-int ret;
-int server_fd = -1;
-int client_count = 0;
-int client_fd;
-socklen_t sock_len = sizeof(struct sockaddr_in);
+        int ret;
+        int server_fd = -1;
+        int client_count = 0;
+        int client_fd;
+        socklen_t sock_len = sizeof(struct sockaddr_in);
 
-//log_file = fopen("/home/ubuntu/experiment_space/server_program/src/log.txt", "w+");
-//if(log_file == NULL) {
-	log_file = stdout;
-//}
+        log_file = stdout;
 
-signal(SIGINT, &sigint_callback);
+        signal(SIGINT, &sigint_callback);
 
-//printf("Parsing JSON string\n");
-//json_parser(json_str);
-//json_create();
+        ret = init_connection(&server_fd);
 
-ret = init_connection(&server_fd);
+        if (ret < 0)
+                return -1;
 
-if (ret < 0)
-	return -1;
+        //listen on server port for incoming connections
+        //Queue connections upto MAX_CONNECTIONS value
 
-//listen on server port for incoming connections
-//Queue connections upto MAX_CONNECTIONS value
+        sprintf(log_message, "Server listening for incoming connections on port %d\n", server_port);
+        logger(log_file, "INFO", log_message);
+        memset(log_message, 0, sizeof(log_message));
 
-sprintf(log_message, "Server listening for incoming connections on port %d\n", server_port);
-logger(log_file, "INFO", log_message);
-memset(log_message, 0, sizeof(log_message));
+        ret = listen(server_fd, MAX_CONNECTIONS);
+        if (ret < 0) {
+                perror("listen on server_fd failed \n");
+                return -1;
+        }
 
-ret = listen(server_fd, MAX_CONNECTIONS);
-if (ret < 0) {
-    perror("listen on server_fd failed \n");
-    return -1;
-}
+        //Maintain a while 1 loop, acting as server listening/accept thread
+        while(1) {
 
-//Maintain a while 1 loop, acting as server listening/accept thread
-while(1) {
+                //**Please check the multiple client case, how to reuse pthread_t variable**
+                //If connection less than max_connection, service the new incoming connection
+                client_fd = accept(server_fd, (struct sockaddr *)&client_sockaddr[client_count], &sock_len);
 
-//**Please check the multiple client case, how to reuse pthread_t variable**
-//If connection less than max_connection, service the new incoming connection
-    client_fd = accept(server_fd, (struct sockaddr *)&client_sockaddr[client_count], &sock_len);
+                if (client_fd < 0) {
+                        perror("accept call failed __LINE__ \n");
+                        return -1;
+                } else {
+                        sprintf(log_message, "Client %d\n successfully connected to server with ip %s\n", client_fd, inet_ntoa(client_sockaddr[client_count].sin_addr));
 
-	if (client_fd < 0) {
-		perror("accept call failed __LINE__ \n");
- 		return -1;
-	} else {
-		sprintf(log_message, "Client %d\n successfully connected to server with ip %s\n", client_fd, inet_ntoa(client_sockaddr[client_count].sin_addr));
-
-		logger(log_file, "INFO", log_message);
-		memset(log_message, 0, sizeof(log_message));
-		ret = pthread_create(&bot_thread[client_fd], NULL, &bot_control_thread, &client_fd);
-		ret = pthread_create(&recv_thread[client_fd], NULL, &recv_thread_func, &client_fd);
-		ret = pthread_create(&send_thread[client_fd], NULL, &send_thread_func, &client_fd);
-		if(ret < 0) {
-			perror("Thread creation failed __LINE__\n");
-		}
-	}
-}
+                        logger(log_file, "INFO", log_message);
+                        memset(log_message, 0, sizeof(log_message));
+                        ret = pthread_create(&bot_thread[client_fd], NULL, &bot_control_thread, &client_fd);
+                        ret = pthread_create(&recv_thread[client_fd], NULL, &recv_thread_func, &client_fd);
+                        ret = pthread_create(&send_thread[client_fd], NULL, &send_thread_func, &client_fd);
+                        if(ret < 0) {
+                                perror("Thread creation failed __LINE__\n");
+                        }
+                }
+        }
 
 
-server_close();
+        server_close();
 
-return 1;
+        return 1;
 }

@@ -36,12 +36,6 @@ int send_ret[MAX_CONNECTIONS];
 void *shared_mem_vicon;
 void *shared_mem_comm;
 char success_buf[SEND_BUFFER_SIZE] = "\{ \"Backward\":-1.0,\"Forward\":-1.0,\"ID\":109,\"Left\":-1.0,\"Right\":-1.0,\"Stop\":1.0\}";
-/*char stop_buf[SEND_BUFFER_SIZE] = "\{\\\"Backward\\\":-1.0,\\\"Forward\\\":-1.0,\\\"ID\\\":109,\\\"Left\\\":-1.0,\\\"Right\\\":-1.0,\\\"Stop\\\":1.0\}";
-char forward_buf[SEND_BUFFER_SIZE] =  "\{\\\"Backward\\\":-1.0,\\\"Forward\\\":0.5,\\\"ID\\\":109,\\\"Left\\\":-1.0,\\\"Right\\\":-1.0,\\\"Stop\\\":-1.0\}";
-char right_buf[SEND_BUFFER_SIZE] = "\{\\\"Backward\\\":-1.0,\\\"Forward\\\":-1.0,\\\"ID\\\":109,\\\"Left\\\":-1.0,\\\"Right\\\":0.25,\\\"Stop\\\":-1.0\}";
-char left_buf[SEND_BUFFER_SIZE] = "\{\\\"Backward\\\":-1.0,\\\"Forward\\\":-1.0,\\\"ID\\\":109,\\\"Left\\\":0.5,\\\"Right\\\":-1.0,\\\"Stop\\\":-1.0\}";
-char backward_buf[SEND_BUFFER_SIZE] = "\{\\\"Backward\\\":0.5,\\\"Forward\\\":-1.0,\\\"ID\\\":109,\\\"Left\\\":-1.0,\\\"Right\\\":-1.0,\\\"Stop\\\":-1.0\}";
-*/
 FILE *log_file = NULL;
 
 //Add -v to printf logger details to std terminal
@@ -50,17 +44,18 @@ FILE *log_file = NULL;
 pthread_t bot_thread[MAX_CONNECTIONS];
 void server_close();
 
-//Add SIGINT handler to stop server listen thread.
-//Allows for resource deallocation
-//Signal SIGINT callback
-
+/*
+ *Add SIGINT handler to stop server listen thread.
+ *Allows for resource deallocation
+ *Signal SIGINT callback
+ */
 void sigint_callback(int sig) {
-		
-	sprintf(log_message, "Inside sigint_callback for sig %d\n", sig);
-	logger(log_file, "DEBUG", log_message);
-	memset(log_message, 0, sizeof(log_message));
-	server_close();
-	exit(0);
+
+        sprintf(log_message, "Inside sigint_callback for sig %d\n", sig);
+        logger(log_file, "DEBUG", log_message);
+        memset(log_message, 0, sizeof(log_message));
+        server_close();
+        exit(0);
 
 }
 
@@ -68,20 +63,18 @@ void sigint_callback(int sig) {
 //close server connection
 void server_close() {
 
-//int i;
-shmdt(shared_mem_vicon);
-shmdt(shared_mem_comm);
-//release resources
+        //release resources
+        shmdt(shared_mem_vicon);
+        shmdt(shared_mem_comm);
+        fclose(log_file);
+
+}
+
 /*
-for (i = 0 ; i < MAX_CONNECTIONS; i++) {
-    pthread_cancel(bot_thread[i]);
-    pthread_cancel(bot_thread[i]);
-}
-*/
-fclose(log_file);
-
-}
-
+        Debug thread used to test
+        for network communication 
+        and bot movement
+ */
 void *bot_control_thread(void *arg) {
 
 	int client_fd = *(int *)arg;
@@ -135,142 +128,136 @@ void *bot_control_thread(void *arg) {
 
 }
 
-//main function
 
 int main() {
 
-int shmid;
-int shmid2;
-struct TrackerObject *bot_location;
-char *json_buf;
+        int shmid;
+        int shmid2;
+        struct TrackerObject *bot_location;
+        char *json_buf;
 
-  shmid = shmget((key_t)1234, sizeof(struct TrackerObject), 0666 | IPC_CREAT);
+        shmid = shmget((key_t)1234, sizeof(struct TrackerObject), 0666 | IPC_CREAT);
 
-  if(shmid < 0) {
-	  perror("msgget failed with error");
-	  exit(0);
-  }
-  
-  shmid2 = shmget((key_t)4321, SEND_BUFFER_SIZE, 0666 | IPC_CREAT);
+        if(shmid < 0) {
+                perror("msgget failed with error");
+                exit(0);
+        }
 
-  if(shmid2 < 0) {
-	  perror("msgget failed with error");
-	  exit(0);
-  }
+        shmid2 = shmget((key_t)4321, SEND_BUFFER_SIZE, 0666 | IPC_CREAT);
 
-shared_mem_vicon = shmat(shmid, (void *)0 , 0);
-if (shared_mem_vicon == (void *)-1) {
-	printf("shmat for shared_mem_vicon failed\n");
-	exit(0);
-}
+        if(shmid2 < 0) {
+                perror("msgget failed with error");
+                exit(0);
+        }
 
-shared_mem_comm = shmat(shmid2, (void *)0 , 0);
-if (shared_mem_comm == (void *)-1) {
-	printf("shmat for shared_mem_comm failed\n");
-	exit(0);
-}
-bot_location = (struct TrackerObject *)shared_mem_vicon;
-json_buf = (char *)shared_mem_comm;
-char *id = "m3pi";
+        shared_mem_vicon = shmat(shmid, (void *)0 , 0);
+        if (shared_mem_vicon == (void *)-1) {
+                printf("shmat for shared_mem_vicon failed\n");
+                exit(0);
+        }
 
-//log_file = fopen("/home/ubuntu/experiment_space/server_program/src/log.txt", "w+");
-//if(log_file == NULL) {
-	log_file = stdout;
-//}
+        shared_mem_comm = shmat(shmid2, (void *)0 , 0);
+        if (shared_mem_comm == (void *)-1) {
+                printf("shmat for shared_mem_comm failed\n");
+                exit(0);
+        }
+        bot_location = (struct TrackerObject *)shared_mem_vicon;
+        json_buf = (char *)shared_mem_comm;
+        char *id = "m3pi";
 
-signal(SIGINT, &sigint_callback);
+        log_file = stdout;
 
-//Maintain a while 1 loop, acting as server listening/accept thread
+        signal(SIGINT, &sigint_callback);
 
-/*
-		ret = pthread_create(&bot_thread2[2], NULL, &bot_control_thread, &client_fd);
-		if(ret < 0) {
-			perror("Thread creation failed __LINE__\n");
-		}
-pthread_join();
-*/
+        /*****TEST CODE
+           ret = pthread_create(&bot_thread2[2], NULL, &bot_control_thread, &client_fd);
+           if(ret < 0) {
+           perror("Thread creation failed __LINE__\n");
+           }
+           pthread_join();
+         */
 
-int objectX = 730;
-int objectY = 1095;
-int endPointX = 135;
-int endPointY = 1370;
-int turn_right = 0;
+        int objectX = 730;
+        int objectY = 1095;
+        int endPointX = 135;
+        int endPointY = 1370;
+        int turn_right = 0;
 
-while(1) {
+        while(1) {
 
 #ifdef DEBUG
-	printf("Item Name :%s\n", bot_location->ItemName);
-	printf("Trans X :%lf\n", bot_location->TransX);
-	printf("Trans Y :%lf\n", bot_location->TransY);
-	printf("Trans Z :%lf\n", bot_location->TransZ);
-	printf("Rot X :%lf\n", bot_location->RotX);
-	printf("Rot Y :%lf\n", bot_location->RotY);
-	printf("\n\n");
+                printf("Item Name :%s\n", bot_location->ItemName);
+                printf("Trans X :%lf\n", bot_location->TransX);
+                printf("Trans Y :%lf\n", bot_location->TransY);
+                printf("Trans Z :%lf\n", bot_location->TransZ);
+                printf("Rot X :%lf\n", bot_location->RotX);
+                printf("Rot Y :%lf\n", bot_location->RotY);
+                printf("\n\n");
 #endif
 aa:
-while((objectY - bot_location->TransY) > 100) {
-	
-			json_create(success_buf, id, 0.5, -1.0, -1.0, -1.0, -1.0);  //FORWARD
-	
-			printf("Go forward\n");
-			sleep(1);
-}
-			json_create(success_buf, id, -1.0, -1.0, -1.0, -1.0, 1.0);	//STOP
+                while((objectY - bot_location->TransY) > 100) {
 
-			printf("Stop\n");
-if (bot_location->TransX < objectX) {
-			json_create(success_buf, id, -1.0, -1.0, -1.0, 0.25, -1.0);	//RIGHT
-			memcpy(json_buf, success_buf, sizeof(success_buf));
-			turn_right = 1;
-			printf("Go Right\n");
-} else {
-			json_create(success_buf, id, -1.0, -1.0, 0.25, -1.0, -1.0);	//ELSE LEFT
-			memcpy(json_buf, success_buf, sizeof(success_buf));
-			turn_right = 0;
-			printf("Go left\n");
-}
+                        json_create(success_buf, id, 0.5, -1.0, -1.0, -1.0, -1.0);  //FORWARD
 
-if(turn_right) {
-	while((objectX - bot_location->TransX) > 100) {
-			json_create(success_buf, id, 0.5, -1.0, -1.0, -1.0, -1.0);	//FORWARD
-			memcpy(json_buf, success_buf, sizeof(success_buf));
-			printf("Go right_forward\n");
-			sleep(1);
-	} 
-} else {
-	while((bot_location->TransX - objectX) > 100) {
-			json_create(success_buf, id, 0.5, -1.0, -1.0, -1.0, -1.0);	//FORWARD	
-			memcpy(json_buf, success_buf, sizeof(success_buf));
-			printf("Go left_Forward\n");
-			sleep(1);
+                        printf("Go forward\n");
+                        sleep(1);
+                }
+                json_create(success_buf, id, -1.0, -1.0, -1.0, -1.0, 1.0);	//STOP
 
-	}
+                printf("Stop\n");
+                if (bot_location->TransX < objectX) {
+                        json_create(success_buf, id, -1.0, -1.0, -1.0, 0.25, -1.0);	//RIGHT
+                        memcpy(json_buf, success_buf, sizeof(success_buf));
+                        turn_right = 1;
+                        printf("Go Right\n");
+                } else {
+                        json_create(success_buf, id, -1.0, -1.0, 0.25, -1.0, -1.0);	//ELSE LEFT
+                        memcpy(json_buf, success_buf, sizeof(success_buf));
+                        turn_right = 0;
+                        printf("Go left\n");
+                }
 
-}
+                if(turn_right) {
+                        while((objectX - bot_location->TransX) > 100) {
+                                json_create(success_buf, id, 0.5, -1.0, -1.0, -1.0, -1.0);	//FORWARD
+                                memcpy(json_buf, success_buf, sizeof(success_buf));
+                                printf("Go right_forward\n");
+                                sleep(1);
+                        } 
+                } else {
+                        while((bot_location->TransX - objectX) > 100) {
+                                json_create(success_buf, id, 0.5, -1.0, -1.0, -1.0, -1.0);	//FORWARD	
+                                memcpy(json_buf, success_buf, sizeof(success_buf));
+                                printf("Go left_Forward\n");
+                                sleep(1);
 
-objectX = endPointX; 
-objectY = endPointY; 
+                        }
 
-goto aa;
+                }
 
-/*
-	printf("bot_location is %f\n", bot_location->TransX);
+                objectX = endPointX; 
+                objectY = endPointY; 
 
-	if (bot_location->TransX < 1000.0) {
-			json_create(success_buf, id, 0.5, -1.0, -1.0, -1.0, -1.0);
-	} else if (bot_location->TransX > 1000.0) {
-			json_create(success_buf, id, -1.0, -1.0, -1.0, 0.25, -1.0);	
-	} else {
-			json_create(success_buf, id, -1.0, -1.0, -1.0, -1.0, 1.0); 
-   }*/
+                goto aa;
 
-//memcpy(json_buf, success_buf, sizeof(success_buf));
+                /*****TEST CODE
+                   printf("bot_location is %f\n", bot_location->TransX);
 
-sleep(1);
+                   if (bot_location->TransX < 1000.0) {
+                   json_create(success_buf, id, 0.5, -1.0, -1.0, -1.0, -1.0);
+                   } else if (bot_location->TransX > 1000.0) {
+                   json_create(success_buf, id, -1.0, -1.0, -1.0, 0.25, -1.0);	
+                   } else {
+                   json_create(success_buf, id, -1.0, -1.0, -1.0, -1.0, 1.0); 
+                   }*/
 
-}
+                //memcpy(json_buf, success_buf, sizeof(success_buf));
 
-server_close();
+                sleep(1);
 
-return 1;
+        }
+
+        server_close();
+
+        return 1;
 }
